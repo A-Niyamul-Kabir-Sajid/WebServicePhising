@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QueueStorm Warmup · PYM_Particles</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌩️</text></svg>"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">🌩️</span>
+        <div class="brand-text">
+          <h1>QueueStorm Warmup</h1>
+          <p>Team <strong>PYM_Particles</strong> · Digital Finance CRM Classifier</p>
+        </div>
+      </div>
+      <div id="health" class="health" title="GET /health">
+        <span class="dot"></span>
+        <span class="health-text">checking…</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card form-card">
+        <header class="card-header">
+          <h2>POST /sort-ticket</h2>
+          <p>Submit a customer support ticket to get a structured classification.</p>
+        </header>
+
+        <form id="ticket-form" autocomplete="off">
+          <div class="row">
+            <label for="ticket_id">ticket_id <span class="req">*</span></label>
+            <input
+              type="text"
+              id="ticket_id"
+              name="ticket_id"
+              required
+              placeholder="T-001"
+              value="T-001"
+            />
+          </div>
+
+          <div class="row two">
+            <div>
+              <label for="channel">channel</label>
+              <select id="channel" name="channel">
+                <option value="">—</option>
+                <option value="app" selected>app</option>
+                <option value="sms">sms</option>
+                <option value="call_center">call_center</option>
+                <option value="merchant_portal">merchant_portal</option>
+              </select>
+            </div>
+            <div>
+              <label for="locale">locale</label>
+              <select id="locale" name="locale">
+                <option value="">—</option>
+                <option value="en" selected>en</option>
+                <option value="bn">bn</option>
+                <option value="mixed">mixed</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <label for="message">message <span class="req">*</span></label>
+            <textarea
+              id="message"
+              name="message"
+              required
+              rows="5"
+              placeholder="e.g. I sent 3000 to wrong number"
+            >I sent 3000 to wrong number</textarea>
+          </div>
+
+          <div class="actions">
+            <button type="submit" id="submit-btn" class="btn primary">
+              <span class="btn-label">Classify ticket</span>
+            </button>
+            <button type="button" id="reset-btn" class="btn ghost">Reset</button>
+          </div>
+        </form>
+
+        <details class="samples">
+          <summary>Try a sample ticket</summary>
+          <div class="sample-grid">
+            <button type="button" class="sample" data-message="I sent 3000 to wrong number">Wrong transfer</button>
+            <button type="button" class="sample" data-message="Payment failed but balance deducted">Payment failed</button>
+            <button type="button" class="sample" data-message="Someone called asking my OTP, is that bKash?">Phishing</button>
+            <button type="button" class="sample" data-message="Please refund my last transaction, I changed my mind">Refund</button>
+            <button type="button" class="sample" data-message="App crashed when I opened it">Other</button>
+            <button type="button" class="sample" data-message="I sent 5000 taka to a wrong number this morning, please help me get it back">With amount</button>
+          </div>
+        </details>
+      </section>
+
+      <section class="card result-card">
+        <header class="card-header">
+          <h2>Response</h2>
+          <p>The exact JSON returned by the API. Nothing else.</p>
+        </header>
+
+        <div id="status-line" class="status-line" aria-live="polite"></div>
+
+        <div id="result-empty" class="empty">
+          <div class="empty-icon">📨</div>
+          <p>Submit a ticket to see the classification here.</p>
+        </div>
+
+        <div id="result" class="result hidden">
+          <div class="chips">
+            <div class="chip" data-key="case_type">
+              <span class="chip-label">case_type</span>
+              <span class="chip-value" id="chip-case_type">—</span>
+            </div>
+            <div class="chip" data-key="severity">
+              <span class="chip-label">severity</span>
+              <span class="chip-value" id="chip-severity">—</span>
+            </div>
+            <div class="chip" data-key="department">
+              <span class="chip-label">department</span>
+              <span class="chip-value" id="chip-department">—</span>
+            </div>
+            <div class="chip" data-key="confidence">
+              <span class="chip-label">confidence</span>
+              <span class="chip-value" id="chip-confidence">—</span>
+            </div>
+            <div class="chip wide" data-key="human_review_required">
+              <span class="chip-label">human_review_required</span>
+              <span class="chip-value" id="chip-human_review_required">—</span>
+            </div>
+          </div>
+
+          <div class="summary">
+            <span class="chip-label">agent_summary</span>
+            <p id="summary-text">—</p>
+          </div>
+
+          <pre id="raw-json" class="raw-json" aria-label="Raw JSON response"></pre>
+          <button type="button" id="copy-btn" class="btn small">Copy JSON</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Backend: <code>Node.js + Express + TypeScript</code></span>
+      <span>Classifier: <code>rule-based</code> + optional <code>Google Gemini</code></span>
+      <span>Deployed on <code>Render</code></span>
+    </footer>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

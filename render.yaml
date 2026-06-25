@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: queuestorm-warmup-pym-particles
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: USE_GEMINI
+        value: true
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash-lite
+      - key: GEMINI_TIMEOUT_MS
+        value: 8000
+      - key: GEMINI_API_KEY
+        sync: false
