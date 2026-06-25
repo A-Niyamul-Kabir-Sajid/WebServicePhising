@@ -17,7 +17,7 @@ The service accepts one support ticket and returns a structured classification:
 | `human_review_required` | boolean | Whether a human must look at it |
 | `confidence` | number (0–1) | Classifier confidence |
 
-A deterministic **rule-based classifier** is the source of truth. An **optional Google Gemini** layer can enrich the result on top. If Gemini is disabled, unavailable, times out, or returns invalid output, the API falls back to the rule-based result so the response is **always valid**.
+The API always runs a deterministic **rule-based classifier** first. An optional **Google Gemini** layer can refine the result, but it is validated, sanitized, and prevented from downgrading fraud or confident rule matches. If Gemini is disabled, unavailable, times out, or returns invalid output, the API falls back to the rule-based result so the response is **always valid**.
 
 ---
 
@@ -31,6 +31,7 @@ A deterministic **rule-based classifier** is the source of truth. An **optional 
   - [GET / (Dashboard)](#get--dashboard)
 - [Safety rules](#safety-rules)
 - [Classification priority](#classification-priority)
+- [How Gemini is used](#how-gemini-is-used)
 - [Local setup](#local-setup)
 - [Environment variables](#environment-variables)
 - [Sample tickets and expected results](#sample-tickets-and-expected-results)
@@ -56,7 +57,7 @@ The dashboard at `/` is a single static page that calls `/sort-ticket` and `/hea
 
 ## Tech stack
 
-- Node.js (>= 18)
+- Node.js 20.x
 - Express 4
 - TypeScript 5
 - Google Gemini API (optional, via `@google/genai`)
@@ -105,8 +106,8 @@ curl -X POST https://webservicephising.onrender.com/sort-ticket \
 | --- | --- | --- | --- |
 | `ticket_id` | string | ✅ | Echoed back in the response |
 | `message` | string | ✅ | Non-empty, max 4000 chars |
-| `channel` | string | ❌ | `app` / `chat` / `call` / `web` — accepted, ignored by the classifier |
-| `locale` | string | ❌ | `en` / `bn` — accepted, ignored by the classifier |
+| `channel` | string | ❌ | `app` / `sms` / `call_center` / `merchant_portal` — accepted, ignored by the classifier |
+| `locale` | string | ❌ | `en` / `bn` / `mixed` — accepted, ignored by the classifier |
 
 **Successful response** (exact 7-field schema, no extra fields):
 
@@ -118,7 +119,7 @@ curl -X POST https://webservicephising.onrender.com/sort-ticket \
   "department": "dispute_resolution",
   "agent_summary": "Customer reports sending 5000 BDT to a wrong recipient and requests recovery support.",
   "human_review_required": false,
-  "confidence": 0.85
+  "confidence": 0.86
 }
 ```
 
@@ -149,6 +150,7 @@ curl -X POST https://webservicephising.onrender.com/sort-ticket \
 - `400 { "error": "Invalid JSON body" }` — body is missing or not valid JSON
 - `400 { "error": "ticket_id is required and must be a string" }`
 - `400 { "error": "message is required and must be a non-empty string" }`
+- `400 { "error": "message must be 4000 characters or fewer" }`
 - `404 { "error": "Not Found", "path": "..." }` — any other unmatched route returns JSON, not HTML
 
 ### GET / (Dashboard)
@@ -181,6 +183,31 @@ When multiple categories could match a single message, the classifier uses this 
 3. `payment_failed`
 4. `refund_request`
 5. `other`
+
+## How Gemini is used
+
+Gemini is optional. The request flow in `POST /sort-ticket` is:
+
+1. The rule-based classifier analyzes `message` first.
+2. If `USE_GEMINI=true` and `GEMINI_API_KEY` is set, Gemini also analyzes the ticket `message`.
+3. Gemini is asked to return only `case_type`, `severity`, `department`, `agent_summary`, and `confidence`.
+4. The Gemini result is parsed, enum-validated, and checked so `agent_summary` never asks for OTP, PIN, password, CVV, full card number, or card details.
+5. The final response echoes `ticket_id` from the original request and computes `human_review_required` in the backend.
+
+Gemini currently receives only this part of the request:
+
+```txt
+Ticket message: <customer message>
+```
+
+It does **not** receive `ticket_id`, `channel`, or `locale`. Those fields are accepted by the API for compatibility, but the classifier currently ignores them.
+
+Merge rules:
+
+- Rule-based phishing/social-engineering results always win.
+- Gemini can flag phishing/social-engineering if the rules missed it.
+- Gemini cannot downgrade a confident non-`other` rule match to `other`.
+- If Gemini fails for any reason, the rule-based result is returned.
 
 ## Local setup
 
@@ -253,6 +280,7 @@ Expected case types / severities:
 | Message | case_type | severity |
 | --- | --- | --- |
 | `I sent 3000 to wrong number` | `wrong_transfer` | `high` |
+| `I sent 3000 to wrong numbet` | `wrong_transfer` | `high` |
 | `Payment failed but balance deducted` | `payment_failed` | `high` |
 | `Someone called asking my OTP, is that bKash?` | `phishing_or_social_engineering` | `critical` |
 | `Please refund my last transaction, I changed my mind` | `refund_request` | `low` |
@@ -287,7 +315,7 @@ Step 6: Use these settings:
 - **Name:** `queuestorm-warmup-pym-particles`
 - **Runtime:** Node
 - **Build Command:** `npm install && npm run build`
-- **Start Command:** `npm start`
+- **Start Command:** `node ./dist/index.js`
 - **Health Check Path:** `/health`
 
 Step 7: Add environment variables:
@@ -350,10 +378,10 @@ tsconfig.json
 - **GitHub repository URL:** `<your public GitHub repo URL>`
 - **Live API base URL:** `https://your-service-name.onrender.com`
 - **Deployment platform:** `Render`
-- **LLM used:** `Yes - Google Gemini API, with deterministic rule-based fallback.`
+- **LLM used:** `Yes - Google Gemini API analyzes the ticket message only, with deterministic rule-based fallback.`
 
 ## Known issues or blockers
 
 - Render free services may spin down after inactivity, so the first request after idle can be slower.
 - Gemini may also be rate-limited or unavailable, so the API falls back to rule-based classification.
-- The rule-based classifier is the source of truth; Gemini is only an enhancement.
+- The rule-based classifier always runs first; Gemini is only an optional enhancement.

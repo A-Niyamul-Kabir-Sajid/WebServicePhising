@@ -6,6 +6,8 @@ import type {
 } from "../types/ticket";
 import { isSafeAgentSummary } from "./safety";
 
+const MAX_MESSAGE_LENGTH = 4000;
+
 export const ALLOWED_CASE_TYPES: CaseType[] = [
   "wrong_transfer",
   "payment_failed",
@@ -134,6 +136,13 @@ export function validateSortTicketRequest(
       ok: false,
       status: 400,
       error: "message is required and must be a non-empty string",
+    };
+  }
+  if (b.message.length > MAX_MESSAGE_LENGTH) {
+    return {
+      ok: false,
+      status: 400,
+      error: "message must be 4000 characters or fewer",
     };
   }
 

@@ -136,7 +136,7 @@
       return;
     }
     if (message.length > 4000) {
-      setStatus("Message is too long (max 4000 chars).", "err");
+      setStatus("Message must be 4000 characters or fewer.", "err");
       return;
     }
 
