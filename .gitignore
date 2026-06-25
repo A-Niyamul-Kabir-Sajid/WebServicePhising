@@ -38,3 +38,6 @@ coverage/
 # Misc
 .puku/.puku/
 .puku/
+
+# Render entry shim
+# (start.js is committed on purpose — see start.js for rationale)
