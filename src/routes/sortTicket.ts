@@ -13,9 +13,6 @@ import { normalizeConfidence, validateSortTicketRequest } from "../utils/validat
 
 const router = Router();
 
-/**
- * Decide whether human review is required for a final classification.
- */
 function isHumanReviewRequired(
   caseType: ClassificationResponse["case_type"],
   severity: ClassificationResponse["severity"]
@@ -25,14 +22,6 @@ function isHumanReviewRequired(
   return false;
 }
 
-/**
- * POST /sort-ticket
- *
- * Body:
- *   { "ticket_id": "T-001", "channel"?: "...", "locale"?: "...", "message": "..." }
- *
- * Returns the exact required schema with no extra fields.
- */
 router.post("/sort-ticket", async (req: Request, res: Response) => {
   const validation = validateSortTicketRequest(req.body);
   if (!validation.ok) {
@@ -47,23 +36,24 @@ router.post("/sort-ticket", async (req: Request, res: Response) => {
     message: validation.message,
   };
 
-  // 1) Deterministic rule-based classification (always runs first).
   const ruleResult = sanitizePartial(classifyWithRules(ticket.message));
 
-  // 2) Optional Gemini refinement.
   let finalPartial = ruleResult;
   if (isGeminiEnabled()) {
     const geminiResult = await classifyWithGemini(ticket);
     if (geminiResult) {
-      // For obvious phishing/social engineering cases, the rule-based
-      // result is trusted strongly. We never let Gemini downgrade it.
+      // Gemini can improve a result, but not downgrade fraud or confident rules.
       if (ruleResult.case_type === "phishing_or_social_engineering") {
         finalPartial = ruleResult;
       } else if (
         geminiResult.case_type === "phishing_or_social_engineering"
       ) {
-        // Gemini correctly flagged phishing on something the rules missed.
         finalPartial = geminiResult;
+      } else if (
+        ruleResult.case_type !== "other" &&
+        geminiResult.case_type === "other"
+      ) {
+        finalPartial = ruleResult;
       } else {
         finalPartial = geminiResult;
       }

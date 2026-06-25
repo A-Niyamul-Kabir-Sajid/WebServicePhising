@@ -1,13 +1,3 @@
-/**
- * Optional Google Gemini integration for the ticket classifier.
- *
- * Gemini is treated as an "improver" on top of the deterministic
- * rule-based classifier. If anything goes wrong (missing key,
- * timeout, invalid JSON, invalid enums, unsafe summary), this
- * module returns null and the caller falls back to the
- * rule-based result.
- */
-
 import { GoogleGenAI } from "@google/genai";
 
 import type {
@@ -41,10 +31,6 @@ const GEMINI_TIMEOUT_MS = readEnvNumber(
   DEFAULT_TIMEOUT_MS
 );
 
-/**
- * Build the prompt sent to Gemini. We ask for strict JSON only,
- * with no markdown, no prose, and no extra fields.
- */
 function buildPrompt(ticket: TicketInput): string {
   return [
     "You are a digital finance CRM ticket classifier.",
@@ -70,26 +56,18 @@ function buildPrompt(ticket: TicketInput): string {
   ].join("\n");
 }
 
-/**
- * Try to extract a JSON object from a model response. The model
- * occasionally wraps JSON in ```json fences or adds stray prose;
- * this helper strips those so we can still parse the payload.
- */
 function extractJsonObject(text: string): unknown | null {
   if (!text) return null;
 
-  // Strip markdown code fences if present.
+  // Accept common model drift: code fences or prose around the JSON object.
   let cleaned = text.trim();
   cleaned = cleaned.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
 
-  // Direct parse first.
   try {
     return JSON.parse(cleaned);
   } catch {
-    // fall through
   }
 
-  // Fallback: grab the first {...} block.
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start >= 0 && end > start) {
@@ -103,18 +81,10 @@ function extractJsonObject(text: string): unknown | null {
   return null;
 }
 
-/**
- * Decide whether the Gemini enhancement is enabled at all.
- * Returns true only if USE_GEMINI=true AND GEMINI_API_KEY is set.
- */
 export function isGeminiEnabled(): boolean {
   return USE_GEMINI && GEMINI_API_KEY.length > 0;
 }
 
-/**
- * Run a promise with a timeout. If the promise does not resolve
- * in time, the returned promise rejects with a TimeoutError.
- */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -133,11 +103,6 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-/**
- * Try to classify the ticket using Gemini. Returns a sanitized
- * PartialClassification on success, or null on any failure
- * (missing key, timeout, invalid JSON, invalid enums, unsafe summary).
- */
 export async function classifyWithGemini(
   ticket: TicketInput
 ): Promise<PartialClassification | null> {
@@ -168,7 +133,7 @@ export async function classifyWithGemini(
 
     return sanitizePartial(validated);
   } catch {
-    // Any failure -> null. Caller falls back to rule-based.
+    // Keep Gemini optional; the route falls back to rules on any failure.
     return null;
   }
 }

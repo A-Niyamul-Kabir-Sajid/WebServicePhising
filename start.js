@@ -1,15 +1,3 @@
-/* Render entry shim.
- *
- * The TypeScript build emits dist/index.js. Render sometimes caches the
- * previously configured start command (e.g. "node dist/index.js" or
- * "npm start") even after we update render.yaml, so we normalize both
- * paths through this single shim.
- *
- * Usage:
- *   node start.js
- *   npm start
- */
-
 const path = require("path");
 const { spawn } = require("child_process");
 

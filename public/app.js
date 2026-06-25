@@ -1,7 +1,3 @@
-/* QueueStorm Warmup — dashboard script
- * Wires the static form to the JSON API on the same origin.
- */
-
 (function () {
   "use strict";
 
@@ -33,7 +29,6 @@
     },
   };
 
-  // ------------------------------------------------------------------ health
   async function checkHealth() {
     try {
       const res = await fetch("/health", { method: "GET" });
@@ -55,7 +50,6 @@
     }
   }
 
-  // ------------------------------------------------------------------- util
   function setStatus(msg, kind) {
     els.statusLine.classList.remove("ok", "err");
     if (kind) els.statusLine.classList.add(kind);
@@ -88,7 +82,6 @@
   }
 
   function renderResult(data) {
-    // hide empty state, show result
     els.empty.style.display = "none";
     els.result.classList.remove("hidden");
 
@@ -123,7 +116,6 @@
     );
   }
 
-  // ------------------------------------------------------------------- form
   async function handleSubmit(e) {
     e.preventDefault();
     setStatus("");
@@ -206,7 +198,6 @@
       els.copyBtn.textContent = "Copied ✓";
       setTimeout(() => (els.copyBtn.textContent = original), 1200);
     } catch {
-      // fallback: select text
       const range = document.createRange();
       range.selectNodeContents(els.rawJson);
       const sel = window.getSelection();
@@ -215,7 +206,6 @@
     }
   }
 
-  // ------------------------------------------------------------------- bind
   function bind() {
     els.form.addEventListener("submit", handleSubmit);
     els.resetBtn.addEventListener("click", handleReset);
@@ -229,7 +219,6 @@
         els.message.focus();
       });
     });
-    // cmd/ctrl+enter from the textarea submits
     els.message.addEventListener("keydown", (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
@@ -241,7 +230,6 @@
   document.addEventListener("DOMContentLoaded", () => {
     bind();
     checkHealth();
-    // refresh health every 30s
     setInterval(checkHealth, 30000);
   });
 })();

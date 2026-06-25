@@ -1,7 +1,3 @@
-/**
- * Validation helpers for incoming tickets and for Gemini responses.
- */
-
 import type {
   CaseType,
   Department,
@@ -46,10 +42,6 @@ function isAllowedDepartment(v: unknown): v is Department {
   );
 }
 
-/**
- * Validate a value that we expect to be a PartialClassification object
- * returned by Gemini. Returns the typed object on success or null on failure.
- */
 export function validateGeminiOutput(
   raw: unknown
 ): PartialClassification | null {
@@ -84,19 +76,12 @@ export function validateGeminiOutput(
   };
 }
 
-/**
- * Round a confidence number to 2 decimals and clamp into [0, 1].
- */
 export function normalizeConfidence(value: number): number {
   if (!Number.isFinite(value)) return 0;
   const clamped = Math.min(1, Math.max(0, value));
   return Math.round(clamped * 100) / 100;
 }
 
-/**
- * Validate the request body for POST /sort-ticket.
- * Returns either a normalized TicketInput or an error message string.
- */
 export interface RequestValidationOk {
   ok: true;
   ticket_id: string;
@@ -136,7 +121,6 @@ export function validateSortTicketRequest(
 
   const b = body as Record<string, unknown>;
 
-  // ticket_id
   if (typeof b.ticket_id !== "string" || b.ticket_id.trim().length === 0) {
     return {
       ok: false,
@@ -145,7 +129,6 @@ export function validateSortTicketRequest(
     };
   }
 
-  // message
   if (typeof b.message !== "string" || b.message.trim().length === 0) {
     return {
       ok: false,
@@ -154,7 +137,6 @@ export function validateSortTicketRequest(
     };
   }
 
-  // Optional channel/locale are accepted but ignored for now
   const channel =
     typeof b.channel === "string" && b.channel.trim().length > 0
       ? b.channel.trim()

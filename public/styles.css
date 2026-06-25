@@ -25,9 +25,10 @@ html, body {
   padding: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  background: radial-gradient(1200px 600px at 10% -10%, #1b2350 0%, var(--bg) 60%) fixed;
+  background: radial-gradient(1200px 600px at 10% -10%, #1b2350 0%, var(--bg) 60%);
   color: var(--text);
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 code, pre, .raw-json {
@@ -35,7 +36,6 @@ code, pre, .raw-json {
     "Liberation Mono", monospace;
 }
 
-/* ------------------------------------------------------------------ topbar */
 .topbar {
   display: flex;
   align-items: center;
@@ -112,12 +112,12 @@ code, pre, .raw-json {
   color: #fecaca;
 }
 
-/* ------------------------------------------------------------------- layout */
 .layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
   padding: 28px;
+  width: 100%;
   max-width: 1180px;
   margin: 0 auto;
 }
@@ -128,13 +128,13 @@ code, pre, .raw-json {
   }
 }
 
-/* --------------------------------------------------------------------- card */
 .card {
   background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 22px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  min-width: 0;
 }
 
 .card-header h2 {
@@ -149,7 +149,6 @@ code, pre, .raw-json {
   font-size: 13px;
 }
 
-/* -------------------------------------------------------------------- form */
 form .row {
   display: flex;
   flex-direction: column;
@@ -270,7 +269,6 @@ textarea {
   to { transform: rotate(360deg); }
 }
 
-/* ------------------------------------------------------------------ samples */
 .samples {
   margin-top: 18px;
   border-top: 1px dashed var(--line);
@@ -316,7 +314,6 @@ textarea {
   background: #161c44;
 }
 
-/* ------------------------------------------------------------------ status */
 .status-line {
   font-size: 12px;
   color: var(--muted);
@@ -327,7 +324,6 @@ textarea {
 .status-line.ok { color: #86efac; }
 .status-line.err { color: #fca5a5; }
 
-/* ------------------------------------------------------------------- result */
 .empty {
   text-align: center;
   padding: 30px 10px;
@@ -373,7 +369,6 @@ textarea {
   word-break: break-word;
 }
 
-/* color coding per category */
 .chip[data-key="case_type"] .chip-value[data-c="wrong_transfer"]            { color: #fb923c; }
 .chip[data-key="case_type"] .chip-value[data-c="payment_failed"]             { color: #f472b6; }
 .chip[data-key="case_type"] .chip-value[data-c="refund_request"]             { color: #a78bfa; }
@@ -431,7 +426,6 @@ textarea {
   margin-top: 8px;
 }
 
-/* ------------------------------------------------------------------- footer */
 .footer {
   display: flex;
   flex-wrap: wrap;
@@ -446,4 +440,42 @@ textarea {
 
 .footer code {
   color: #c7d2fe;
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px 16px;
+  }
+
+  .brand-text h1 {
+    font-size: 18px;
+  }
+
+  .layout {
+    gap: 18px;
+    padding: 18px 14px;
+  }
+
+  .card {
+    border-radius: 12px;
+    padding: 18px;
+  }
+
+  form .row.two,
+  .chips {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .footer {
+    align-items: center;
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
 }

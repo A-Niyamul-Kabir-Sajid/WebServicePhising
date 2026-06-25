@@ -1,30 +1,9 @@
-/**
- * Deterministic rule-based ticket classifier.
- *
- * This is the safety net for the QueueStorm Warmup service:
- *  - It always returns a valid classification.
- *  - It uses a strict priority order so that a single message
- *    can never end up classified into two categories at once.
- *
- * Priority:
- *   1. phishing_or_social_engineering
- *   2. wrong_transfer
- *   3. payment_failed
- *   4. refund_request
- *   5. other
- */
-
 import type {
   CaseType,
   PartialClassification,
 } from "../types/ticket";
 import { detectAmount, formatAmountForSummary } from "../utils/text";
 import { isSafeAgentSummary } from "../utils/safety";
-
-// -----------------------------------------------------------------------------
-// Keyword tables. Order does not matter inside a table; the classifier priority
-// decides which table wins. We keep English + Bangla variants.
-// -----------------------------------------------------------------------------
 
 const PHISHING_KEYWORDS: string[] = [
   "otp",
@@ -63,6 +42,9 @@ const PHISHING_KEYWORDS: string[] = [
 
 const WRONG_TRANSFER_KEYWORDS: string[] = [
   "wrong number",
+  "wrong numbet",
+  "wrong nubmer",
+  "wrong numbr",
   "wrong recipient",
   "wrong person",
   "wrong account",
@@ -131,10 +113,6 @@ const REFUND_DISPUTE_HINTS: string[] = [
   "service not received",
 ];
 
-// -----------------------------------------------------------------------------
-// Matching helpers
-// -----------------------------------------------------------------------------
-
 function containsAny(haystackLower: string, needles: string[]): boolean {
   for (const n of needles) {
     if (haystackLower.includes(n)) return true;
@@ -142,17 +120,84 @@ function containsAny(haystackLower: string, needles: string[]): boolean {
   return false;
 }
 
-/**
- * Classify a single support message using deterministic rules.
- *
- * Returns a PartialClassification. The main classifier is responsible
- * for adding ticket_id and human_review_required.
- */
+function tokenizeEnglish(textLower: string): string[] {
+  return textLower
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function boundedEditDistance(
+  a: string,
+  b: string,
+  maxDistance: number
+): number {
+  if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1;
+
+  const previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  const current = Array.from({ length: b.length + 1 }, () => 0);
+
+  for (let i = 1; i <= a.length; i += 1) {
+    current[0] = i;
+    let rowMin = current[0];
+
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + cost
+      );
+      rowMin = Math.min(rowMin, current[j]);
+    }
+
+    if (rowMin > maxDistance) return maxDistance + 1;
+    previous.splice(0, previous.length, ...current);
+  }
+
+  return previous[b.length];
+}
+
+function hasNearToken(
+  tokens: string[],
+  targets: string[],
+  maxDistance: number
+): boolean {
+  return tokens.some((token) =>
+    targets.some(
+      (target) =>
+        token === target ||
+        boundedEditDistance(token, target, maxDistance) <= maxDistance
+    )
+  );
+}
+
+// Keeps the fallback useful when Gemini is unavailable and users make typos.
+function hasWrongTransferTypoPattern(textLower: string): boolean {
+  const tokens = tokenizeEnglish(textLower);
+  if (!tokens.includes("wrong")) return false;
+
+  const hasRecipientWord = hasNearToken(
+    tokens,
+    ["number", "recipient", "account", "person"],
+    2
+  );
+  if (!hasRecipientWord) return false;
+
+  const hasTransferContext =
+    hasNearToken(tokens, ["sent", "send", "transfer", "transferred"], 1) ||
+    containsAny(textLower, ["money", "taka", "tk", "bdt"]) ||
+    /\b\d{2,}\b/.test(textLower);
+
+  return hasTransferContext;
+}
+
 export function classifyWithRules(message: string): PartialClassification {
   const original = typeof message === "string" ? message : "";
   const lower = original.toLowerCase();
 
-  // 1) Phishing / social engineering — always highest priority.
+  // Fraud signals stay first so they cannot be masked by transfer/refund wording.
   if (containsAny(lower, PHISHING_KEYWORDS)) {
     return {
       case_type: "phishing_or_social_engineering",
@@ -164,8 +209,10 @@ export function classifyWithRules(message: string): PartialClassification {
     };
   }
 
-  // 2) Wrong transfer.
-  if (containsAny(lower, WRONG_TRANSFER_KEYWORDS)) {
+  if (
+    containsAny(lower, WRONG_TRANSFER_KEYWORDS) ||
+    hasWrongTransferTypoPattern(lower)
+  ) {
     const amount = detectAmount(original);
     const formatted = formatAmountForSummary(amount);
     const summary = formatted
@@ -180,7 +227,6 @@ export function classifyWithRules(message: string): PartialClassification {
     };
   }
 
-  // 3) Payment failed.
   if (containsAny(lower, PAYMENT_FAILED_KEYWORDS)) {
     const deducted = containsAny(lower, DEDUCTION_HINTS);
     const severity: "high" | "medium" = deducted ? "high" : "medium";
@@ -194,7 +240,6 @@ export function classifyWithRules(message: string): PartialClassification {
     };
   }
 
-  // 4) Refund request.
   if (containsAny(lower, REFUND_KEYWORDS)) {
     const isDispute = containsAny(lower, REFUND_DISPUTE_HINTS);
     return {
@@ -207,7 +252,6 @@ export function classifyWithRules(message: string): PartialClassification {
     };
   }
 
-  // 5) Fallback.
   return {
     case_type: "other",
     severity: "low",
@@ -218,10 +262,6 @@ export function classifyWithRules(message: string): PartialClassification {
   };
 }
 
-/**
- * Sanity-check a partial classification result and ensure its
- * agent_summary is safe. If unsafe, swap in a neutral summary.
- */
 export function sanitizePartial(
   partial: PartialClassification
 ): PartialClassification {
@@ -233,5 +273,4 @@ export function sanitizePartial(
   };
 }
 
-// Re-export for convenience.
 export type { CaseType, PartialClassification };

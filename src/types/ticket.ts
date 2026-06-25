@@ -1,7 +1,3 @@
-/**
- * Type definitions for the QueueStorm Warmup ticket classification API.
- */
-
 export type CaseType =
   | "wrong_transfer"
   | "payment_failed"
@@ -27,11 +23,6 @@ export interface TicketInput {
   message: string;
 }
 
-/**
- * A partial classification result returned by a classifier
- * (either the rule-based one or Gemini). The main classifier
- * is responsible for adding ticket_id and human_review_required.
- */
 export interface PartialClassification {
   case_type: CaseType;
   severity: Severity;
@@ -40,9 +31,6 @@ export interface PartialClassification {
   confidence: number;
 }
 
-/**
- * The final, normalized response returned by /sort-ticket.
- */
 export interface ClassificationResponse {
   ticket_id: string;
   case_type: CaseType;
