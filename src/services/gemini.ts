@@ -31,10 +31,22 @@ const GEMINI_TIMEOUT_MS = readEnvNumber(
   DEFAULT_TIMEOUT_MS
 );
 
+export interface GeminiClassification extends PartialClassification {
+  corrected_message?: string;
+}
+
 function buildPrompt(ticket: TicketInput): string {
   return [
     "You are a digital finance CRM ticket classifier.",
-    "Classify the following customer support ticket.",
+    "You will receive a raw customer message that may contain typos, transliteration, mixed Bangla/English, or grammatical noise.",
+    "",
+    "Step 1 — CORRECT the message:",
+    "- Rewrite the message into a short, clean, grammatically correct sentence (or two) in the same language(s) the customer used.",
+    "- Fix obvious typos, spelling mistakes, and spacing.",
+    "- Preserve the customer's meaning and any numbers/amounts.",
+    "- Do NOT change factual content. Do NOT add information the customer did not say.",
+    "",
+    "Step 2 — CLASSIFY the corrected message.",
     "",
     "Return ONLY a single JSON object with EXACTLY these fields:",
     "  case_type       (one of: wrong_transfer, payment_failed, refund_request, phishing_or_social_engineering, other)",
@@ -42,6 +54,7 @@ function buildPrompt(ticket: TicketInput): string {
     "  department      (one of: customer_support, dispute_resolution, payments_ops, fraud_risk)",
     "  agent_summary   (one or two neutral sentences)",
     "  confidence      (number between 0 and 1)",
+    "  corrected_message (the cleaned-up sentence from Step 1)",
     "",
     "Rules:",
     "- Do NOT include any other fields.",
@@ -52,7 +65,7 @@ function buildPrompt(ticket: TicketInput): string {
     "- agent_summary must NEVER ask the customer to share OTP, PIN, password, passcode, verification code, CVV, full card number, or card details.",
     "- If the customer reports being asked for OTP / PIN / password / CVV, or a suspicious contact requesting sensitive info, classify as phishing_or_social_engineering with severity = critical and department = fraud_risk.",
     "",
-    `Ticket message: ${ticket.message}`,
+    `Raw ticket message: ${ticket.message}`,
   ].join("\n");
 }
 
@@ -105,7 +118,7 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 
 export async function classifyWithGemini(
   ticket: TicketInput
-): Promise<PartialClassification | null> {
+): Promise<GeminiClassification | null> {
   if (!isGeminiEnabled()) return null;
 
   try {
@@ -131,7 +144,11 @@ export async function classifyWithGemini(
     const validated = validateGeminiOutput(parsed);
     if (!validated) return null;
 
-    return sanitizePartial(validated);
+    const sanitized = sanitizePartial(validated);
+    return {
+      ...sanitized,
+      corrected_message: validated.corrected_message,
+    };
   } catch {
     // Keep Gemini optional; the route falls back to rules on any failure.
     return null;

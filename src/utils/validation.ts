@@ -46,7 +46,7 @@ function isAllowedDepartment(v: unknown): v is Department {
 
 export function validateGeminiOutput(
   raw: unknown
-): PartialClassification | null {
+): (PartialClassification & { corrected_message?: string }) | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
 
@@ -69,12 +69,21 @@ export function validateGeminiOutput(
   if (!Number.isFinite(confNum)) return null;
   if (confNum < 0 || confNum > 1) return null;
 
+  let correctedMessage: string | undefined;
+  if (typeof obj.corrected_message === "string") {
+    const trimmed = obj.corrected_message.trim();
+    if (trimmed.length > 0) {
+      correctedMessage = trimmed.slice(0, 4000);
+    }
+  }
+
   return {
     case_type: obj.case_type,
     severity: obj.severity,
     department: obj.department,
     agent_summary: summary,
     confidence: confNum,
+    corrected_message: correctedMessage,
   };
 }
 

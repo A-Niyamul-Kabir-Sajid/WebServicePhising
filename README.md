@@ -188,26 +188,31 @@ When multiple categories could match a single message, the classifier uses this 
 
 Gemini is optional. The request flow in `POST /sort-ticket` is:
 
-1. The rule-based classifier analyzes `message` first.
-2. If `USE_GEMINI=true` and `GEMINI_API_KEY` is set, Gemini also analyzes the ticket `message`.
-3. Gemini is asked to return only `case_type`, `severity`, `department`, `agent_summary`, and `confidence`.
+1. The rule-based classifier analyzes the raw `message` first and produces a baseline result.
+2. If `USE_GEMINI=true` and `GEMINI_API_KEY` is set, Gemini is called next. The prompt has two steps:
+   - **Step 1 — Correct the message:** rewrite the customer message into a clean, grammatically correct sentence in the same language(s), fixing typos, spelling, and spacing while preserving meaning and any numbers/amounts.
+   - **Step 2 — Classify** the corrected message.
+3. Gemini is asked to return `case_type`, `severity`, `department`, `agent_summary`, `confidence`, and a new `corrected_message` field.
 4. The Gemini result is parsed, enum-validated, and checked so `agent_summary` never asks for OTP, PIN, password, CVV, full card number, or card details.
-5. The final response echoes `ticket_id` from the original request and computes `human_review_required` in the backend.
+5. The **corrected** message (or the raw message if Gemini is disabled / returned no correction) is then run through the keyword matcher in `src/services/classifier.ts`, which scans the six keyword tables in priority order: `PHISHING_KEYWORDS` → `WRONG_TRANSFER_KEYWORDS` → `PAYMENT_FAILED_KEYWORDS` → `REFUND_KEYWORDS`.
+6. The final response echoes `ticket_id` from the original request and computes `human_review_required` in the backend.
 
 Gemini currently receives only this part of the request:
 
 ```txt
-Ticket message: <customer message>
+Raw ticket message: <customer message>
 ```
 
 It does **not** receive `ticket_id`, `channel`, or `locale`. Those fields are accepted by the API for compatibility, but the classifier currently ignores them.
 
-Merge rules:
+Merge rules (applied in this order):
 
-- Rule-based phishing/social-engineering results always win.
+- A **phishing keyword** match (from the corrected text) always wins and forces `phishing_or_social_engineering` / `critical` / `fraud_risk`.
 - Gemini can flag phishing/social-engineering if the rules missed it.
+- Rule-based phishing/social-engineering results always win over Gemini.
+- A **non-phishing keyword** match upgrades an `other` rule or Gemini result to the keyword's category.
 - Gemini cannot downgrade a confident non-`other` rule match to `other`.
-- If Gemini fails for any reason, the rule-based result is returned.
+- If Gemini fails for any reason, the rule-based result is returned and keyword matching falls back to the raw message.
 
 ## Local setup
 

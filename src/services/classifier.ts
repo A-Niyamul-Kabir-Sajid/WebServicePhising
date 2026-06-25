@@ -5,7 +5,7 @@ import type {
 import { detectAmount, formatAmountForSummary } from "../utils/text";
 import { isSafeAgentSummary } from "../utils/safety";
 
-const PHISHING_KEYWORDS: string[] = [
+export const PHISHING_KEYWORDS: string[] = [
   "otp",
   "pin",
   "password",
@@ -40,7 +40,7 @@ const PHISHING_KEYWORDS: string[] = [
   "লিংক",
 ];
 
-const WRONG_TRANSFER_KEYWORDS: string[] = [
+export const WRONG_TRANSFER_KEYWORDS: string[] = [
   "wrong number",
   "wrong numbet",
   "wrong nubmer",
@@ -63,7 +63,7 @@ const WRONG_TRANSFER_KEYWORDS: string[] = [
   "ভুল ব্যক্তিকে",
 ];
 
-const PAYMENT_FAILED_KEYWORDS: string[] = [
+export const PAYMENT_FAILED_KEYWORDS: string[] = [
   "payment failed",
   "transaction failed",
   "failed payment",
@@ -82,7 +82,7 @@ const PAYMENT_FAILED_KEYWORDS: string[] = [
   "টাকা কাটা হয়েছে",
 ];
 
-const DEDUCTION_HINTS: string[] = [
+export const DEDUCTION_HINTS: string[] = [
   "deducted",
   "charged",
   "balance",
@@ -90,7 +90,7 @@ const DEDUCTION_HINTS: string[] = [
   "কাটা হয়েছে",
 ];
 
-const REFUND_KEYWORDS: string[] = [
+export const REFUND_KEYWORDS: string[] = [
   "refund",
   "return my money",
   "money back",
@@ -103,7 +103,7 @@ const REFUND_KEYWORDS: string[] = [
   "টাকা ফেরত চাই",
 ];
 
-const REFUND_DISPUTE_HINTS: string[] = [
+export const REFUND_DISPUTE_HINTS: string[] = [
   "disputed",
   "unauthorized",
   "merchant refused",
@@ -111,6 +111,18 @@ const REFUND_DISPUTE_HINTS: string[] = [
   "not delivered",
   "wrong charge",
   "service not received",
+];
+
+export type KeywordSet = {
+  case_type: CaseType;
+  keywords: string[];
+};
+
+export const KEYWORD_SETS: KeywordSet[] = [
+  { case_type: "phishing_or_social_engineering", keywords: PHISHING_KEYWORDS },
+  { case_type: "wrong_transfer", keywords: WRONG_TRANSFER_KEYWORDS },
+  { case_type: "payment_failed", keywords: PAYMENT_FAILED_KEYWORDS },
+  { case_type: "refund_request", keywords: REFUND_KEYWORDS },
 ];
 
 function containsAny(haystackLower: string, needles: string[]): boolean {
@@ -191,6 +203,19 @@ function hasWrongTransferTypoPattern(textLower: string): boolean {
     /\b\d{2,}\b/.test(textLower);
 
   return hasTransferContext;
+}
+
+export function matchKeywords(text: string): CaseType | null {
+  const lower = (text || "").toLowerCase();
+  if (!lower) return null;
+
+  // Priority order: phishing first, then wrong_transfer, payment_failed, refund.
+  for (const set of KEYWORD_SETS) {
+    if (containsAny(lower, set.keywords)) {
+      return set.case_type;
+    }
+  }
+  return null;
 }
 
 export function classifyWithRules(message: string): PartialClassification {
