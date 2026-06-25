@@ -6,6 +6,7 @@
  */
 
 import "dotenv/config";
+import path from "path";
 
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
@@ -18,6 +19,10 @@ const app = express();
 // Core middleware
 app.use(express.json({ limit: "1mb" }));
 app.use(cors());
+
+// Static dashboard (optional convenience page served at GET /).
+// Mounted before the routes/404 so / resolves to public/index.html.
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 // Routes
 app.use(healthRouter);
