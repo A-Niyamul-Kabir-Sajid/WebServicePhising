@@ -1,25 +1,77 @@
-# QueueStorm Warmup - PYM_Particles
+# QueueStorm Warmup · PYM_Particles
 
-Backend-only API service for classifying digital finance customer support tickets.
+> **Live deployment:** [https://webservicephising.onrender.com](https://webservicephising.onrender.com)
+> · **Dashboard:** [https://webservicephising.onrender.com/](https://webservicephising.onrender.com/)
+> · **Health check:** [https://webservicephising.onrender.com/health](https://webservicephising.onrender.com/health)
 
-This is a hackathon mock preliminary API for team **PYM_Particles**. The service accepts one customer support ticket and returns a structured classification (case type, severity, department, agent summary, confidence, and whether human review is required).
+A hackathon mock preliminary API for team **PYM_Particles** that classifies digital-finance customer support tickets and routes them to the right back-office team.
 
-The service uses a deterministic **rule-based classifier** as the source of truth, with an **optional Google Gemini** enhancement layer on top. If Gemini is disabled, unavailable, times out, or returns invalid output, the API falls back to the rule-based result so the response is always valid.
+The service accepts one support ticket and returns a structured classification:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `case_type` | enum | What the ticket is about |
+| `severity` | enum | How urgent it is |
+| `department` | enum | Which team should handle it |
+| `agent_summary` | string | Neutral one-line summary for the agent |
+| `human_review_required` | boolean | Whether a human must look at it |
+| `confidence` | number (0–1) | Classifier confidence |
+
+A deterministic **rule-based classifier** is the source of truth. An **optional Google Gemini** layer can enrich the result on top. If Gemini is disabled, unavailable, times out, or returns invalid output, the API falls back to the rule-based result so the response is **always valid**.
+
+---
+
+## Table of contents
+
+- [Live service](#live-service)
+- [Tech stack](#tech-stack)
+- [Endpoints](#endpoints)
+  - [GET /health](#get-health)
+  - [POST /sort-ticket](#post-sort-ticket)
+  - [GET / (Dashboard)](#get--dashboard)
+- [Safety rules](#safety-rules)
+- [Classification priority](#classification-priority)
+- [Local setup](#local-setup)
+- [Environment variables](#environment-variables)
+- [Sample tickets and expected results](#sample-tickets-and-expected-results)
+- [Testing the live deployment](#testing-the-live-deployment)
+- [Deploying your own copy on Render](#deploying-your-own-copy-on-render)
+- [Project structure](#project-structure)
+- [Submission form values](#submission-form-values)
+- [Known issues or blockers](#known-issues-or-blockers)
+
+---
+
+## Live service
+
+| Resource | URL |
+| --- | --- |
+| Dashboard (HTML) | `https://webservicephising.onrender.com/` |
+| Liveness | `https://webservicephising.onrender.com/health` |
+| Classification API | `https://webservicephising.onrender.com/sort-ticket` |
+
+The dashboard at `/` is a single static page that calls `/sort-ticket` and `/health` on the same origin — open it in any browser to try the API without `curl`.
+
+---
 
 ## Tech stack
 
 - Node.js (>= 18)
-- Express
-- TypeScript
-- Google Gemini API (optional)
-- Rule-based fallback
-- Render Web Service (single deployable)
+- Express 4
+- TypeScript 5
+- Google Gemini API (optional, via `@google/genai`)
+- Deterministic rule-based fallback
+- Single Render Web Service (no separate frontend, no database, no auth, no file uploads)
 
 ## Endpoints
 
 ### GET /health
 
 Simple liveness check. Always returns JSON.
+
+```bash
+curl https://webservicephising.onrender.com/health
+```
 
 ```json
 {
@@ -30,27 +82,33 @@ Simple liveness check. Always returns JSON.
 }
 ```
 
+This is the path configured in the Render health check.
+
 ### POST /sort-ticket
 
-Request body:
+Classifies a single ticket.
 
-```json
-{
-  "ticket_id": "T-001",
-  "channel": "app",
-  "locale": "en",
-  "message": "I sent 5000 taka to a wrong number this morning, please help me get it back"
-}
+```bash
+curl -X POST https://webservicephising.onrender.com/sort-ticket \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ticket_id": "T-001",
+    "channel":   "app",
+    "locale":    "en",
+    "message":   "I sent 5000 taka to a wrong number this morning, please help me get it back"
+  }'
 ```
 
-Required fields:
+**Request body**
 
-- `ticket_id` (string)
-- `message` (string, non-empty)
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `ticket_id` | string | ✅ | Echoed back in the response |
+| `message` | string | ✅ | Non-empty, max 4000 chars |
+| `channel` | string | ❌ | `app` / `chat` / `call` / `web` — accepted, ignored by the classifier |
+| `locale` | string | ❌ | `en` / `bn` — accepted, ignored by the classifier |
 
-Optional fields (accepted but ignored for now): `channel`, `locale`.
-
-Successful response (exact schema, no extra fields):
+**Successful response** (exact 7-field schema, no extra fields):
 
 ```json
 {
@@ -64,7 +122,7 @@ Successful response (exact schema, no extra fields):
 }
 ```
 
-Allowed `case_type` values:
+**Allowed `case_type` values**
 
 - `wrong_transfer`
 - `payment_failed`
@@ -72,25 +130,34 @@ Allowed `case_type` values:
 - `phishing_or_social_engineering`
 - `other`
 
-Allowed `severity` values:
+**Allowed `severity` values**
 
 - `low`
 - `medium`
 - `high`
 - `critical`
 
-Allowed `department` values:
+**Allowed `department` values**
 
 - `customer_support`
 - `dispute_resolution`
 - `payments_ops`
 - `fraud_risk`
 
-Error responses:
+**Error responses**
 
 - `400 { "error": "Invalid JSON body" }` — body is missing or not valid JSON
 - `400 { "error": "ticket_id is required and must be a string" }`
 - `400 { "error": "message is required and must be a non-empty string" }`
+- `404 { "error": "Not Found", "path": "..." }` — any other unmatched route returns JSON, not HTML
+
+### GET / (Dashboard)
+
+For convenience, the same Express app also serves a small static dashboard at `/`. It is a single HTML page with a form, six sample tickets, color-coded result chips, and a raw-JSON viewer that calls `POST /sort-ticket` under the hood.
+
+- Static assets live in `public/` and are served via `express.static`.
+- The JSON API is still the real contract for submissions. The dashboard is just a reviewer-friendly UI for poking at the API in a browser.
+- Unknown paths still return a JSON 404, so the dashboard never breaks API clients.
 
 ## Safety rules
 
@@ -265,6 +332,10 @@ src/
     text.ts               # Amount detection helpers
     validation.ts         # Request + Gemini response validation
     safety.ts             # Unsafe-summary detection
+public/
+  index.html              # Static dashboard markup
+  styles.css              # Dashboard styling
+  app.js                  # Dashboard JS (calls /health and /sort-ticket)
 .env.example
 .gitignore
 README.md
